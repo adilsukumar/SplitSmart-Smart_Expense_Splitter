@@ -1,0 +1,140 @@
+# 💸 SplitSmart — Smart Expense Splitter
+
+> Split expenses with friends, roommates, and teams — without the awkward math.
+
+SplitSmart is a lightweight, real-time expense splitting web app. No sign-up required. Just create a group, share the link, and start tracking.
+
+🔗 **Live Demo**: [Deploy link here]  
+📹 **Demo Video**: [Video link here]
+
+---
+
+## ✨ Features
+
+### Core
+| Feature | Description |
+|---|---|
+| 📁 Create Groups | Named groups for trips, flat expenses, team activities |
+| 👥 Add Members | Add any number of people to a group |
+| 💳 Add Expenses | Log what was spent, how much, and who paid |
+| ⚖️ Equal Split | Auto-split costs evenly among all members |
+| 🎯 Custom Split | Assign exact amounts to specific people |
+| 📊 Real-time Balances | Live balance updates the moment anyone adds an expense |
+| 💸 Debt Summary | Simplified "who owes whom" using minimum transactions |
+| ✅ Settle Up | Record payments and track full settlement history |
+| 📋 Expense History | View, filter by category, and delete past expenses |
+| 🔗 Share via Link | One link to invite friends directly into your group |
+
+### AI-Powered (Groq + LLaMA 3.3)
+| Feature | Description |
+|---|---|
+| 🏷️ Smart Categorization | Auto-detects category (Food, Travel, Rent, etc.) as you type |
+| 🤖 Spending Insights | AI analyzes your group's patterns and gives actionable tips |
+| 📊 Category Breakdown | Visual bar chart of spending per category |
+| 🏆 Top Spenders | Ranked leaderboard of who paid the most |
+
+---
+
+## 🏗️ Architecture
+
+```
+smart-expense-splitter/
+├── index.html              # Single page app — full UI structure
+├── css/
+│   └── style.css           # Dark green aesthetic, fully responsive
+├── js/
+│   ├── config.js           # API keys and endpoint config
+│   └── app.js              # All logic — Supabase, Groq AI, balance calc
+├── netlify.toml            # Netlify deployment config
+└── supabase_schema.sql     # Full PostgreSQL schema with RLS disabled
+```
+
+### Tech Stack
+| Layer | Technology |
+|---|---|
+| Frontend | HTML5, CSS3, Vanilla JavaScript (no frameworks) |
+| Database | Supabase (PostgreSQL) |
+| Real-time | Supabase Realtime via WebSockets |
+| AI | Groq API — LLaMA 3.3 70B |
+| Deployment | Netlify |
+
+### Database Tables
+| Table | Purpose |
+|---|---|
+| `expense_groups` | Group name and creation date |
+| `members` | Members linked to a group |
+| `expenses` | Expense records with amount, payer, category, split type |
+| `expense_splits` | Per-member share for each expense |
+| `settlements` | Recorded debt payments between members |
+
+---
+
+## 🚀 Setup Instructions
+
+### 1. Clone the repo
+```bash
+git clone https://github.com/your-username/smart-expense-splitter.git
+cd smart-expense-splitter
+```
+
+### 2. Set up Supabase
+1. Create a free project at [supabase.com](https://supabase.com)
+2. Go to **SQL Editor** → **New Query**
+3. Paste the full contents of `supabase_schema.sql` and click **Run**
+4. Go to **Project Settings** → **API** and note down:
+   - Project URL (`https://xxxx.supabase.co`)
+   - Anon/public key
+
+### 3. Get a Groq API Key
+1. Sign up free at [console.groq.com](https://console.groq.com)
+2. Go to **API Keys** → **Create API Key**
+3. Free tier gives 14,400 requests/day — more than enough
+
+### 4. Configure keys
+Edit `js/config.js`:
+```js
+const CONFIG = {
+  SUPABASE_URL: "https://your-project.supabase.co",
+  SUPABASE_ANON_KEY: "your-anon-key",
+  GROQ_API_KEY: "your-groq-key",
+  GROQ_URL: "https://api.groq.com/openai/v1/chat/completions",
+  GROQ_MODEL: "llama-3.3-70b-versatile"
+};
+```
+
+### 5. Run locally
+Just open `index.html` in your browser — no build step, no server needed.
+
+### 6. Deploy to Netlify
+1. Push the repo to GitHub (make sure it's public)
+2. Go to [netlify.com](https://netlify.com) → **Add new site** → **Import from Git**
+3. Select your repo, leave all build settings blank
+4. Click **Deploy** — live in ~30 seconds
+
+---
+
+## 💡 How It Works
+
+### Balance Calculation
+Every expense credits the payer's balance and debits each split participant's balance by their share. When a settlement is recorded, the payer's balance increases (debt reduced) and the receiver's decreases. A greedy algorithm then simplifies all outstanding balances into the minimum number of transactions needed.
+
+### AI Categorization
+As you type an expense description, the app debounces 800ms then sends the text to Groq's LLaMA 3.3 model with a strict system prompt to return exactly one category word. The response is cleaned and matched against the valid category list before being saved.
+
+### Real-time Sync
+Supabase Realtime subscribes to Postgres changes on all 5 tables, filtered by `group_id`. Any insert, update, or delete by any user instantly re-fetches and re-renders the UI for everyone in the group — no polling, no refresh needed.
+
+---
+
+## 📸 Screenshots
+> Add screenshots here after deployment
+
+---
+
+## 🔮 Future Improvements
+- User authentication & personal dashboards
+- Export expenses to CSV / PDF
+- Multi-currency support with live conversion
+- Push notifications when a new expense is added
+- Recurring expense tracking
+- Mobile app (PWA)

@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SplitWise – Smart Expense Splitter</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <!-- NAVBAR -->
+  <nav class="navbar">
+    <div class="nav-brand">
+      <span class="logo-icon">💸</span>
+      <span class="logo-text">SplitSmart</span>
+    </div>
+    <div class="nav-actions">
+      <button class="btn btn-outline" id="shareGroupBtn" style="display:none">🔗 Share Group</button>
+    </div>
+  </nav>
+
+  <!-- MAIN APP -->
+  <div class="app-container">
+
+    <!-- LANDING / GROUP SELECTION -->
+    <div id="landingView" class="view active">
+      <div class="hero">
+        <h1>Split expenses,<br /><span class="gradient-text">not friendships.</span></h1>
+        <p class="hero-sub">Track shared expenses in real-time. No sign-up needed.</p>
+      </div>
+
+      <div class="card create-group-card">
+        <h2>Create a New Group</h2>
+        <div class="input-row">
+          <input type="text" id="newGroupName" placeholder="e.g. Goa Trip, Flat Expenses..." maxlength="50" />
+          <button class="btn btn-primary" id="createGroupBtn">Create</button>
+        </div>
+      </div>
+
+      <div class="card" id="recentGroupsCard" style="display:none">
+        <h2>Recent Groups</h2>
+        <div id="recentGroupsList" class="groups-list"></div>
+      </div>
+
+      <div class="card join-card">
+        <h2>Join via Link</h2>
+        <p class="muted">Share a group link with friends and they'll land directly in your group.</p>
+      </div>
+    </div>
+
+    <!-- GROUP DASHBOARD -->
+    <div id="groupView" class="view">
+
+      <!-- Group Header -->
+      <div class="group-header">
+        <button class="btn btn-ghost back-btn" id="backBtn">← Back</button>
+        <div>
+          <h1 id="groupTitle">Group Name</h1>
+          <span class="muted" id="groupMeta"></span>
+        </div>
+      </div>
+
+      <!-- Tab Navigation -->
+      <div class="tabs">
+        <button class="tab active" data-tab="expenses">💳 Expenses</button>
+        <button class="tab" data-tab="balances">⚖️ Balances</button>
+        <button class="tab" data-tab="settlements">✅ Settlements</button>
+        <button class="tab" data-tab="insights">🤖 AI Insights</button>
+      </div>
+
+      <!-- TAB: EXPENSES -->
+      <div id="tab-expenses" class="tab-content active">
+        <div class="two-col">
+
+          <!-- Left: Members + Add Expense -->
+          <div class="left-col">
+            <div class="card">
+              <h3>👥 Members</h3>
+              <div id="membersList" class="members-list"></div>
+              <div class="input-row mt">
+                <input type="text" id="newMemberName" placeholder="Add member name..." maxlength="30" />
+                <button class="btn btn-secondary" id="addMemberBtn">Add</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3>➕ Add Expense</h3>
+              <div class="form-group">
+                <label>Description</label>
+                <div class="input-with-ai">
+                  <input type="text" id="expenseDesc" placeholder="e.g. Dinner at restaurant..." />
+                  <span class="ai-badge" id="categoryBadge">🏷️ —</span>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Amount (₹)</label>
+                <input type="number" id="expenseAmount" placeholder="0.00" min="0" step="0.01" />
+              </div>
+              <div class="form-group">
+                <label>Paid By</label>
+                <select id="paidBy"></select>
+              </div>
+              <div class="form-group">
+                <label>Split Type</label>
+                <div class="split-toggle">
+                  <button class="split-btn active" data-split="equal">Equal</button>
+                  <button class="split-btn" data-split="custom">Custom</button>
+                </div>
+              </div>
+              <div id="customSplitSection" style="display:none" class="form-group">
+                <label>Custom Amounts per Person</label>
+                <div id="customSplitInputs"></div>
+                <div class="split-remaining">Remaining: <span id="splitRemaining">₹0</span></div>
+              </div>
+              <button class="btn btn-primary full-width" id="addExpenseBtn">Add Expense</button>
+            </div>
+          </div>
+
+          <!-- Right: Expense List -->
+          <div class="right-col">
+            <div class="card">
+              <div class="card-header-row">
+                <h3>📋 Expense History</h3>
+                <div class="filter-row">
+                  <select id="categoryFilter">
+                    <option value="">All Categories</option>
+                    <option>Food</option>
+                    <option>Travel</option>
+                    <option>Rent</option>
+                    <option>Entertainment</option>
+                    <option>Shopping</option>
+                    <option>Utilities</option>
+                    <option>General</option>
+                  </select>
+                </div>
+              </div>
+              <div id="expensesList" class="expenses-list"></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- TAB: BALANCES -->
+      <div id="tab-balances" class="tab-content">
+        <div class="card">
+          <h3>⚖️ Current Balances</h3>
+          <p class="muted mb">Positive = owed money, Negative = owes money</p>
+          <div id="balancesList"></div>
+        </div>
+        <div class="card mt">
+          <h3>💸 Who Owes Whom</h3>
+          <p class="muted mb">Simplified debt summary</p>
+          <div id="debtsList"></div>
+        </div>
+      </div>
+
+      <!-- TAB: SETTLEMENTS -->
+      <div id="tab-settlements" class="tab-content">
+        <div class="card">
+          <h3>✅ Settle a Debt</h3>
+          <div class="form-group">
+            <label>From (who is paying)</label>
+            <select id="settleFrom"></select>
+          </div>
+          <div class="form-group">
+            <label>To (who receives)</label>
+            <select id="settleTo"></select>
+          </div>
+          <div class="form-group">
+            <label>Amount (₹)</label>
+            <input type="number" id="settleAmount" placeholder="0.00" min="0" step="0.01" />
+          </div>
+          <button class="btn btn-primary" id="settleBtn">Mark as Settled</button>
+        </div>
+        <div class="card mt">
+          <h3>📜 Settlement History</h3>
+          <div id="settlementHistory"></div>
+        </div>
+      </div>
+
+      <!-- TAB: AI INSIGHTS -->
+      <div id="tab-insights" class="tab-content">
+        <div class="card ai-card">
+          <div class="ai-header">
+            <span class="ai-icon">🤖</span>
+            <div>
+              <h3>AI Spending Insights</h3>
+              <p class="muted">Powered by Gemini AI</p>
+            </div>
+            <button class="btn btn-primary" id="generateInsightsBtn">Generate Insights</button>
+          </div>
+          <div id="insightsOutput" class="insights-output">
+            <p class="muted center">Click "Generate Insights" to get AI-powered analysis of your group's spending.</p>
+          </div>
+        </div>
+
+        <div class="card mt">
+          <h3>📊 Category Breakdown</h3>
+          <div id="categoryBreakdown"></div>
+        </div>
+
+        <div class="card mt">
+          <h3>🏆 Top Spenders</h3>
+          <div id="topSpenders"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toast" class="toast"></div>
+
+  <!-- LOADING OVERLAY -->
+  <div id="loadingOverlay" class="loading-overlay" style="display:none">
+    <div class="spinner"></div>
+    <p id="loadingText">Loading...</p>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
