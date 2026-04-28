@@ -15,12 +15,6 @@ function toast(msg, type = "success") {
   setTimeout(() => t.className = "toast", 3000);
 }
 
-function loading(text = "Loading...") {
-  $("loaderText").textContent = text;
-  $("loader").style.display = "flex";
-}
-function done() { $("loader").style.display = "none"; }
-
 function empty(icon, msg) {
   return `<div class="empty"><span>${icon}</span>${msg}</div>`;
 }
@@ -45,13 +39,16 @@ async function loadRecent() {
     </div>`).join("");
 }
 
-$("createGroupBtn").addEventListener("click", async () => {
-  const name = $("newGroupName").value.trim();
-  if (!name) return toast("Enter a group name", "error");
-  loading("Creating...");
-  const { data, error } = await db.from("expense_groups").insert({ name }).select().single();
-  done();
-  if (error) return toast("Error creating group", "error");
+$('createGroupBtn').addEventListener('click', async () => {
+  const name = $('newGroupName').value.trim();
+  if (!name) return toast('Enter a group name', 'error');
+  const btn = $('createGroupBtn');
+  btn.textContent = 'Creating...';
+  btn.disabled = true;
+  const { data, error } = await db.from('expense_groups').insert({ name }).select().single();
+  btn.textContent = 'Create';
+  btn.disabled = false;
+  if (error) return toast('Error creating group', 'error');
   saveRecent(data.id);
   openGroup(data.id, data.name);
 });
@@ -67,17 +64,15 @@ function saveRecent(id) {
 // ---- OPEN GROUP ----
 
 async function openGroup(id, name) {
-  loading("Loading group...");
   group = { id, name };
   saveRecent(id);
   await Promise.all([fetchMembers(), fetchExpenses(), fetchSettlements()]);
-  $("groupTitle").textContent = name;
-  $("shareBtn").style.display = "inline-flex";
+  $('groupTitle').textContent = name;
+  $('shareBtn').style.display = 'inline-flex';
   renderAll();
   subscribeRealtime();
-  switchTab("expenses");
-  showView("groupView");
-  done();
+  switchTab('expenses');
+  showView('groupView');
 }
 
 $("backBtn").addEventListener("click", () => {
@@ -205,39 +200,41 @@ $("expDesc").addEventListener("input", () => {
 
 // ---- ADD EXPENSE ----
 
-$("addExpBtn").addEventListener("click", async () => {
-  const desc = $("expDesc").value.trim();
-  const amount = parseFloat($("expAmount").value);
-  const paidBy = $("paidBy").value;
-  const category = $("catBadge").dataset.cat || "General";
+$('addExpBtn').addEventListener('click', async () => {
+  const desc = $('expDesc').value.trim();
+  const amount = parseFloat($('expAmount').value);
+  const paidBy = $('paidBy').value;
+  const category = $('catBadge').dataset.cat || 'General';
 
-  if (!desc) return toast("Enter a description", "error");
-  if (!amount || amount <= 0) return toast("Enter a valid amount", "error");
-  if (!members.length) return toast("Add members first", "error");
+  if (!desc) return toast('Enter a description', 'error');
+  if (!amount || amount <= 0) return toast('Enter a valid amount', 'error');
+  if (!members.length) return toast('Add members first', 'error');
 
   let splits = [];
-  if (splitType === "equal") {
+  if (splitType === 'equal') {
     const share = parseFloat((amount / members.length).toFixed(2));
     splits = members.map(m => ({ member_id: m.id, amount: share }));
   } else {
-    splits = [...document.querySelectorAll(".csplit")].map(i => ({ member_id: i.dataset.id, amount: parseFloat(i.value) || 0 }));
+    splits = [...document.querySelectorAll('.csplit')].map(i => ({ member_id: i.dataset.id, amount: parseFloat(i.value) || 0 }));
     const total = splits.reduce((s, i) => s + i.amount, 0);
-    if (Math.abs(total - amount) > 0.01) return toast("Splits must add up to total", "error");
+    if (Math.abs(total - amount) > 0.01) return toast('Splits must add up to total', 'error');
   }
 
-  loading("Adding...");
-  const { data: exp, error } = await db.from("expenses")
+  const btn = $('addExpBtn');
+  btn.textContent = 'Adding...';
+  btn.disabled = true;
+  const { data: exp, error } = await db.from('expenses')
     .insert({ group_id: group.id, description: desc, amount, paid_by: paidBy, split_type: splitType, category })
     .select().single();
-  if (error) { done(); return toast("Error adding expense", "error"); }
-
-  await db.from("expense_splits").insert(splits.map(s => ({ ...s, expense_id: exp.id })));
-  done();
-  $("expDesc").value = "";
-  $("expAmount").value = "";
-  $("catBadge").textContent = "🏷️ —";
-  delete $("catBadge").dataset.cat;
-  toast("Expense added! 💳");
+  if (!error) await db.from('expense_splits').insert(splits.map(s => ({ ...s, expense_id: exp.id })));
+  btn.textContent = 'Add Expense';
+  btn.disabled = false;
+  if (error) return toast('Error adding expense', 'error');
+  $('expDesc').value = '';
+  $('expAmount').value = '';
+  $('catBadge').textContent = '🏷️ —';
+  delete $('catBadge').dataset.cat;
+  toast('Expense added! 💳');
 });
 
 function renderExpenses() {
@@ -265,11 +262,9 @@ function renderExpenses() {
 $("catFilter").addEventListener("change", renderExpenses);
 
 async function deleteExp(id) {
-  if (!confirm("Delete this expense?")) return;
-  loading("Deleting...");
-  await db.from("expenses").delete().eq("id", id);
-  done();
-  toast("Deleted");
+  if (!confirm('Delete this expense?')) return;
+  await db.from('expenses').delete().eq('id', id);
+  toast('Deleted');
 }
 
 // ---- BALANCES ----
@@ -333,19 +328,22 @@ function renderBalances() {
 
 // ---- SETTLEMENTS ----
 
-$("settleBtn").addEventListener("click", async () => {
-  const from = $("settleFrom").value;
-  const to = $("settleTo").value;
-  const amount = parseFloat($("settleAmt").value);
-  if (!from || !to) return toast("Select both members", "error");
-  if (from === to) return toast("Can't settle with yourself", "error");
-  if (!amount || amount <= 0) return toast("Enter a valid amount", "error");
-  loading("Saving...");
-  const { error } = await db.from("settlements").insert({ group_id: group.id, from_member: from, to_member: to, amount });
-  done();
-  if (error) return toast("Error", "error");
-  $("settleAmt").value = "";
-  toast("Settled! ✅");
+$('settleBtn').addEventListener('click', async () => {
+  const from = $('settleFrom').value;
+  const to = $('settleTo').value;
+  const amount = parseFloat($('settleAmt').value);
+  if (!from || !to) return toast('Select both members', 'error');
+  if (from === to) return toast("Can't settle with yourself", 'error');
+  if (!amount || amount <= 0) return toast('Enter a valid amount', 'error');
+  const btn = $('settleBtn');
+  btn.textContent = 'Saving...';
+  btn.disabled = true;
+  const { error } = await db.from('settlements').insert({ group_id: group.id, from_member: from, to_member: to, amount });
+  btn.textContent = 'Mark Settled';
+  btn.disabled = false;
+  if (error) return toast('Error', 'error');
+  $('settleAmt').value = '';
+  toast('Settled! ✅');
 });
 
 function renderSettlements() {

@@ -50,8 +50,7 @@
 
       <div class="tabs">
         <button class="tab active" data-tab="expenses">💳 Expenses</button>
-        <button class="tab" data-tab="balances">⚖️ Balances</button>
-        <button class="tab" data-tab="settle">✅ Settle</button>
+        <button class="tab" data-tab="balances">⚖️ Balances & Settle</button>
         <button class="tab" data-tab="insights">🤖 Insights</button>
       </div>
 
@@ -107,34 +106,36 @@
         </div>
       </div>
 
-      <!-- BALANCES TAB -->
+      <!-- BALANCES & SETTLE TAB -->
       <div id="tab-balances" class="tab-pane">
-        <div class="card">
-          <h3>⚖️ Balances</h3>
-          <p class="dim mb12">Green = gets back money &nbsp;·&nbsp; Red = owes money</p>
-          <div id="balList"></div>
-        </div>
-        <div class="card">
-          <h3>💸 Who Owes Whom</h3>
-          <div id="debtList"></div>
-        </div>
-      </div>
-
-      <!-- SETTLE TAB -->
-      <div id="tab-settle" class="tab-pane">
-        <div class="card">
-          <h3>✅ Record a Payment</h3>
-          <label>From</label>
-          <select id="settleFrom" class="mb12"></select>
-          <label>To</label>
-          <select id="settleTo" class="mb12"></select>
-          <label>Amount (₹)</label>
-          <input type="number" id="settleAmt" placeholder="0.00" class="mb12" />
-          <button class="btn primary" id="settleBtn">Mark Settled</button>
-        </div>
-        <div class="card">
-          <h3>📜 History</h3>
-          <div id="settleList"></div>
+        <div class="two-col">
+          <div>
+            <div class="card">
+              <h3>⚖️ Balances</h3>
+              <p class="dim mb12">Green = gets back · Red = owes</p>
+              <div id="balList"></div>
+            </div>
+            <div class="card">
+              <h3>💸 Who Owes Whom</h3>
+              <div id="debtList"></div>
+            </div>
+          </div>
+          <div>
+            <div class="card">
+              <h3>✅ Record a Payment</h3>
+              <label>From</label>
+              <select id="settleFrom" class="mb12"></select>
+              <label>To</label>
+              <select id="settleTo" class="mb12"></select>
+              <label>Amount (₹)</label>
+              <input type="number" id="settleAmt" placeholder="0.00" class="mb12" />
+              <button class="btn primary full" id="settleBtn">Mark Settled</button>
+            </div>
+            <div class="card">
+              <h3>📜 Settlement History</h3>
+              <div id="settleList"></div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -166,10 +167,6 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <div id="loader" class="loader" style="display:none">
-    <div class="spinner"></div>
-    <p id="loaderText">Loading...</p>
-  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/config.js"></script>

@@ -315,23 +315,6 @@ label { display: block; font-size: 0.82rem; color: var(--text2); margin-bottom: 
 .toast.success { border-color: var(--green); color: var(--green3); }
 .toast.error { border-color: var(--red); color: var(--red); }
 
-/* LOADER */
-.loader {
-  position: fixed; inset: 0;
-  background: rgba(10,15,10,0.85);
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  z-index: 200; gap: 14px;
-}
-.spinner {
-  width: 36px; height: 36px;
-  border: 3px solid var(--border);
-  border-top-color: var(--green);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-.loader p { color: var(--text2); font-size: 0.88rem; }
 
 @media (max-width: 560px) {
   .container { padding: 14px 12px; }
