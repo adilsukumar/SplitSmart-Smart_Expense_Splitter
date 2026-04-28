@@ -4,7 +4,7 @@
 
 SplitSmart is a lightweight, real-time expense splitting web app. No sign-up required. Just create a group, share the link, and start tracking.
 
-🔗 **Live Demo**: [[Deploy link here](https://splitsmart-finance.vercel.app/)]  
+🔗 **Live Demo**: [[Link SplitSmart](https://splitsmart-finance.vercel.app/)]  
 📹 **Demo Video**: [Video link here]
 
 ---
