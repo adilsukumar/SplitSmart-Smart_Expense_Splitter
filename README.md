@@ -43,10 +43,11 @@ smart-expense-splitter/
 ├── css/
 │   └── style.css           # Dark green aesthetic, fully responsive
 ├── js/
-│   ├── config.js           # API keys and endpoint config
+│   ├── config.js           # API keys and endpoint config (gitignored)
 │   └── app.js              # All logic — Supabase, Groq AI, balance calc
-├── netlify.toml            # Netlify deployment config
-└── supabase_schema.sql     # Full PostgreSQL schema with RLS disabled
+├── build.js                # Generates config.js from env variables at build time
+├── vercel.json             # Vercel deployment config
+└── README.md
 ```
 
 ### Tech Stack
@@ -79,9 +80,25 @@ cd smart-expense-splitter
 
 ### 2. Set up Supabase
 1. Create a free project at [supabase.com](https://supabase.com)
-2. Go to **SQL Editor** → **New Query**
-3. Paste the full contents of `supabase_schema.sql` and click **Run**
-4. Go to **Project Settings** → **API** and note down:
+2. Go to **SQL Editor** → **New Query** and run the following:
+```sql
+create table expense_groups (id uuid default gen_random_uuid() primary key, name text not null, created_at timestamp default now());
+create table members (id uuid default gen_random_uuid() primary key, group_id uuid references expense_groups(id) on delete cascade, name text not null, created_at timestamp default now());
+create table expenses (id uuid default gen_random_uuid() primary key, group_id uuid references expense_groups(id) on delete cascade, description text not null, amount numeric not null, paid_by uuid references members(id) on delete cascade, split_type text default 'equal', category text default 'General', created_at timestamp default now());
+create table expense_splits (id uuid default gen_random_uuid() primary key, expense_id uuid references expenses(id) on delete cascade, member_id uuid references members(id) on delete cascade, amount numeric not null);
+create table settlements (id uuid default gen_random_uuid() primary key, group_id uuid references expense_groups(id) on delete cascade, from_member uuid references members(id) on delete cascade, to_member uuid references members(id) on delete cascade, amount numeric not null, settled_at timestamp default now());
+alter table expense_groups disable row level security;
+alter table members disable row level security;
+alter table expenses disable row level security;
+alter table expense_splits disable row level security;
+alter table settlements disable row level security;
+alter publication supabase_realtime add table expense_groups;
+alter publication supabase_realtime add table members;
+alter publication supabase_realtime add table expenses;
+alter publication supabase_realtime add table expense_splits;
+alter publication supabase_realtime add table settlements;
+```
+3. Go to **Project Settings** → **API** and note down:
    - Project URL (`https://xxxx.supabase.co`)
    - Anon/public key
 
