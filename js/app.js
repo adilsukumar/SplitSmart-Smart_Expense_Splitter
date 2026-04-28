@@ -1,8 +1,6 @@
-// ===== INIT SUPABASE =====
 const { createClient } = supabase;
 const db = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
 
-// ===== STATE =====
 let currentGroup = null;
 let members = [];
 let expenses = [];
@@ -10,12 +8,12 @@ let settlements = [];
 let splitType = "equal";
 let realtimeChannel = null;
 
-// ===== DOM HELPERS =====
 const $ = (id) => document.getElementById(id);
-const showView = (id) => {
+
+function showView(id) {
   document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
   $(id).classList.add("active");
-};
+}
 
 function showToast(msg, type = "success") {
   const t = $("toast");
@@ -37,7 +35,6 @@ function emptyState(icon, text) {
   return `<div class="empty-state"><div class="empty-icon">${icon}</div><p>${text}</p></div>`;
 }
 
-// ===== LANDING PAGE =====
 async function loadRecentGroups() {
   const saved = JSON.parse(localStorage.getItem("recentGroups") || "[]");
   if (!saved.length) return;
@@ -75,7 +72,9 @@ $("createGroupBtn").addEventListener("click", async () => {
   openGroup(data.id, data.name);
 });
 
-$("newGroupName").addEventListener("keydown", (e) => e.key === "Enter" && $("createGroupBtn").click());
+$("newGroupName").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") $("createGroupBtn").click();
+});
 
 function saveRecentGroup(id) {
   const saved = JSON.parse(localStorage.getItem("recentGroups") || "[]");
@@ -83,7 +82,6 @@ function saveRecentGroup(id) {
   localStorage.setItem("recentGroups", JSON.stringify(saved.slice(0, 10)));
 }
 
-// ===== OPEN GROUP =====
 async function openGroup(groupId, groupName) {
   showLoading("Loading group...");
   currentGroup = { id: groupId, name: groupName };
@@ -109,13 +107,11 @@ $("backBtn").addEventListener("click", () => {
   loadRecentGroups();
 });
 
-// ===== SHARE GROUP =====
 $("shareGroupBtn").addEventListener("click", () => {
   const url = `${location.origin}${location.pathname}?group=${currentGroup.id}&name=${encodeURIComponent(currentGroup.name)}`;
   navigator.clipboard.writeText(url).then(() => showToast("Link copied to clipboard! 🔗"));
 });
 
-// ===== CHECK URL PARAMS (join via link) =====
 function checkUrlParams() {
   const params = new URLSearchParams(location.search);
   const groupId = params.get("group");
@@ -126,31 +122,21 @@ function checkUrlParams() {
   }
 }
 
-// ===== FETCH DATA =====
 async function fetchMembers() {
   const { data } = await db.from("members").select("*").eq("group_id", currentGroup.id).order("created_at");
   members = data || [];
 }
 
 async function fetchExpenses() {
-  const { data } = await db
-    .from("expenses")
-    .select("*, expense_splits(*)")
-    .eq("group_id", currentGroup.id)
-    .order("created_at", { ascending: false });
+  const { data } = await db.from("expenses").select("*, expense_splits(*)").eq("group_id", currentGroup.id).order("created_at", { ascending: false });
   expenses = data || [];
 }
 
 async function fetchSettlements() {
-  const { data } = await db
-    .from("settlements")
-    .select("*")
-    .eq("group_id", currentGroup.id)
-    .order("settled_at", { ascending: false });
+  const { data } = await db.from("settlements").select("*").eq("group_id", currentGroup.id).order("settled_at", { ascending: false });
   settlements = data || [];
 }
 
-// ===== REALTIME =====
 function subscribeRealtime() {
   if (realtimeChannel) db.removeChannel(realtimeChannel);
   realtimeChannel = db
@@ -170,7 +156,6 @@ function subscribeRealtime() {
     .subscribe();
 }
 
-// ===== RENDER ALL =====
 function renderAll() {
   renderMembers();
   renderMemberSelects();
@@ -182,7 +167,6 @@ function renderAll() {
   $("groupMeta").textContent = `${members.length} members · ${expenses.length} expenses`;
 }
 
-// ===== MEMBERS =====
 function renderMembers() {
   if (!members.length) {
     $("membersList").innerHTML = `<span class="muted">No members yet</span>`;
@@ -213,9 +197,10 @@ $("addMemberBtn").addEventListener("click", async () => {
   showToast(`${name} added!`);
 });
 
-$("newMemberName").addEventListener("keydown", (e) => e.key === "Enter" && $("addMemberBtn").click());
+$("newMemberName").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") $("addMemberBtn").click();
+});
 
-// ===== SPLIT TYPE TOGGLE =====
 document.querySelectorAll(".split-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".split-btn").forEach((b) => b.classList.remove("active"));
@@ -249,7 +234,6 @@ function updateSplitRemaining() {
 
 $("expenseAmount").addEventListener("input", updateSplitRemaining);
 
-// ===== AI CATEGORIZATION =====
 let categoryDebounce;
 $("expenseDesc").addEventListener("input", () => {
   clearTimeout(categoryDebounce);
@@ -260,12 +244,11 @@ $("expenseDesc").addEventListener("input", () => {
 });
 
 async function categorizeExpense(description) {
-  const category = await geminiCategorize(description);
+  const category = await aiCategorize(description);
   $("categoryBadge").textContent = `🏷️ ${category}`;
   $("categoryBadge").dataset.category = category;
 }
 
-// ===== ADD EXPENSE =====
 $("addExpenseBtn").addEventListener("click", async () => {
   const desc = $("expenseDesc").value.trim();
   const amount = parseFloat($("expenseAmount").value);
@@ -309,7 +292,6 @@ $("addExpenseBtn").addEventListener("click", async () => {
   showToast("Expense added! 💳");
 });
 
-// ===== RENDER EXPENSES =====
 function renderExpenses() {
   const filter = $("categoryFilter").value;
   const filtered = filter ? expenses.filter((e) => e.category === filter) : expenses;
@@ -352,25 +334,21 @@ async function deleteExpense(id) {
   showToast("Expense deleted");
 }
 
-// ===== BALANCE CALCULATION =====
 function calculateBalances() {
   const balances = {};
   members.forEach((m) => (balances[m.id] = 0));
 
   expenses.forEach((e) => {
-    // payer gets credited
-    balances[e.paid_by] = (balances[e.paid_by] || 0) + parseFloat(e.amount);
-    // each split member gets debited
+    balances[e.paid_by] += parseFloat(e.amount);
     (e.expense_splits || []).forEach((s) => {
-      balances[s.member_id] = (balances[s.member_id] || 0) - parseFloat(s.amount);
+      balances[s.member_id] -= parseFloat(s.amount);
     });
   });
 
-  // apply settlements: from_member paid cash so their debt reduces (balance goes up)
-  // to_member received cash so what they're owed reduces (balance goes down)
+  // when someone pays back, their balance goes up, receiver's goes down
   settlements.forEach((s) => {
-    balances[s.from_member] = (balances[s.from_member] || 0) + parseFloat(s.amount);
-    balances[s.to_member] = (balances[s.to_member] || 0) - parseFloat(s.amount);
+    balances[s.from_member] += parseFloat(s.amount);
+    balances[s.to_member] -= parseFloat(s.amount);
   });
 
   return balances;
@@ -444,7 +422,6 @@ function renderBalances() {
     .join("");
 }
 
-// ===== SETTLEMENTS =====
 $("settleBtn").addEventListener("click", async () => {
   const from = $("settleFrom").value;
   const to = $("settleTo").value;
@@ -484,7 +461,6 @@ function renderSettlements() {
     .join("");
 }
 
-// ===== CATEGORY BREAKDOWN =====
 function renderCategoryBreakdown() {
   if (!expenses.length) {
     $("categoryBreakdown").innerHTML = emptyState("📊", "No expenses to analyze");
@@ -516,7 +492,6 @@ function renderCategoryBreakdown() {
     .join("");
 }
 
-// ===== TOP SPENDERS =====
 function renderTopSpenders() {
   if (!expenses.length || !members.length) {
     $("topSpenders").innerHTML = emptyState("🏆", "No data yet");
@@ -543,8 +518,7 @@ function renderTopSpenders() {
     .join("");
 }
 
-// ===== GEMINI AI =====
-async function geminiCategorize(description) {
+async function aiCategorize(description) {
   const valid = ["Food", "Travel", "Rent", "Entertainment", "Shopping", "Utilities", "General"];
   try {
     const res = await fetch(CONFIG.GROQ_URL, {
@@ -636,7 +610,6 @@ $("generateInsightsBtn").addEventListener("click", async () => {
   $("generateInsightsBtn").textContent = "Generate Insights";
 });
 
-// ===== TABS =====
 document.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => switchTab(tab.dataset.tab));
 });
@@ -646,12 +619,10 @@ function switchTab(name) {
   document.querySelectorAll(".tab-content").forEach((c) => c.classList.toggle("active", c.id === `tab-${name}`));
 }
 
-// ===== CATEGORY EMOJI HELPER =====
 function categoryEmoji(cat) {
   const map = { Food: "🍔", Travel: "✈️", Rent: "🏠", Entertainment: "🎬", Shopping: "🛍️", Utilities: "💡", General: "📦" };
   return map[cat] || "📦";
 }
 
-// ===== INIT =====
 loadRecentGroups();
 checkUrlParams();
