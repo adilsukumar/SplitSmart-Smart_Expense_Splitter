@@ -51,22 +51,18 @@ smart-expense-splitter/
 ```
 
 ### Tech Stack
-| Layer | Technology |
-|---|---|
-| Frontend | HTML5, CSS3, Vanilla JavaScript (no frameworks) |
-| Database | Supabase (PostgreSQL) |
-| Real-time | Supabase Realtime via WebSockets |
-| AI | Groq API — LLaMA 3.3 70B |
-| Deployment | Vercel |
+- **Frontend** — HTML, CSS, Vanilla JavaScript
+- **Database** — Supabase (PostgreSQL)
+- **Real-time** — Supabase Realtime
+- **AI** — Groq API (LLaMA 3.3)
+- **Deployed on** — Vercel
 
 ### Database Tables
-| Table | Purpose |
-|---|---|
-| `expense_groups` | Group name and creation date |
-| `members` | Members linked to a group |
-| `expenses` | Expense records with amount, payer, category, split type |
-| `expense_splits` | Per-member share for each expense |
-| `settlements` | Recorded debt payments between members |
+- `expense_groups` — group name and date
+- `members` — members in a group
+- `expenses` — expense records with payer, amount, category
+- `expense_splits` — each person's share per expense
+- `settlements` — recorded payments between members
 
 ---
 
