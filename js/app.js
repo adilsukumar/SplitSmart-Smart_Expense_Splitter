@@ -1,366 +1,299 @@
 const { createClient } = supabase;
 const db = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
 
-let currentGroup = null;
-let members = [];
-let expenses = [];
-let settlements = [];
+let group = null;
+let members = [], expenses = [], settlements = [];
 let splitType = "equal";
-let realtimeChannel = null;
+let rtChannel = null;
 
-const $ = (id) => document.getElementById(id);
+const $ = id => document.getElementById(id);
 
-function showView(id) {
-  document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
-  $(id).classList.add("active");
-}
-
-function showToast(msg, type = "success") {
+function toast(msg, type = "success") {
   const t = $("toast");
   t.textContent = msg;
   t.className = `toast show ${type}`;
-  setTimeout(() => (t.className = "toast"), 3000);
+  setTimeout(() => t.className = "toast", 3000);
 }
 
-function showLoading(text = "Loading...") {
-  $("loadingText").textContent = text;
-  $("loadingOverlay").style.display = "flex";
+function loading(text = "Loading...") {
+  $("loaderText").textContent = text;
+  $("loader").style.display = "flex";
+}
+function done() { $("loader").style.display = "none"; }
+
+function empty(icon, msg) {
+  return `<div class="empty"><span>${icon}</span>${msg}</div>`;
 }
 
-function hideLoading() {
-  $("loadingOverlay").style.display = "none";
+function showView(id) {
+  document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+  $(id).classList.add("active");
 }
 
-function emptyState(icon, text) {
-  return `<div class="empty-state"><div class="empty-icon">${icon}</div><p>${text}</p></div>`;
-}
+// ---- LANDING ----
 
-async function loadRecentGroups() {
+async function loadRecent() {
   const saved = JSON.parse(localStorage.getItem("recentGroups") || "[]");
   if (!saved.length) return;
-
   const { data } = await db.from("expense_groups").select("*").in("id", saved).order("created_at", { ascending: false });
   if (!data?.length) return;
-
-  $("recentGroupsCard").style.display = "block";
-  $("recentGroupsList").innerHTML = data
-    .map(
-      (g) => `
-    <div class="group-list-item" onclick="openGroup('${g.id}', '${g.name.replace(/'/g, "\\'")}')">
-      <div>
-        <div class="group-list-name">📁 ${g.name}</div>
-        <div class="group-list-meta">${new Date(g.created_at).toLocaleDateString()}</div>
-      </div>
-      <span style="color:var(--text-muted)">→</span>
-    </div>`
-    )
-    .join("");
+  $("recentCard").style.display = "block";
+  $("recentList").innerHTML = data.map(g => `
+    <div class="recent-item" onclick="openGroup('${g.id}','${g.name.replace(/'/g,"\\'")}')">
+      <span>📁 ${g.name}</span>
+      <span class="dim">${new Date(g.created_at).toLocaleDateString()}</span>
+    </div>`).join("");
 }
 
 $("createGroupBtn").addEventListener("click", async () => {
   const name = $("newGroupName").value.trim();
-  if (!name) return showToast("Enter a group name", "error");
-
-  showLoading("Creating group...");
+  if (!name) return toast("Enter a group name", "error");
+  loading("Creating...");
   const { data, error } = await db.from("expense_groups").insert({ name }).select().single();
-  hideLoading();
-
-  if (error) return showToast("Error creating group", "error");
-
-  saveRecentGroup(data.id);
-  showToast(`Group "${name}" created!`);
+  done();
+  if (error) return toast("Error creating group", "error");
+  saveRecent(data.id);
   openGroup(data.id, data.name);
 });
 
-$("newGroupName").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") $("createGroupBtn").click();
-});
+$("newGroupName").addEventListener("keydown", e => { if (e.key === "Enter") $("createGroupBtn").click(); });
 
-function saveRecentGroup(id) {
+function saveRecent(id) {
   const saved = JSON.parse(localStorage.getItem("recentGroups") || "[]");
   if (!saved.includes(id)) saved.unshift(id);
   localStorage.setItem("recentGroups", JSON.stringify(saved.slice(0, 10)));
 }
 
-async function openGroup(groupId, groupName) {
-  showLoading("Loading group...");
-  currentGroup = { id: groupId, name: groupName };
-  saveRecentGroup(groupId);
+// ---- OPEN GROUP ----
 
+async function openGroup(id, name) {
+  loading("Loading group...");
+  group = { id, name };
+  saveRecent(id);
   await Promise.all([fetchMembers(), fetchExpenses(), fetchSettlements()]);
-
-  $("groupTitle").textContent = groupName;
-  $("groupMeta").textContent = `${members.length} members · ${expenses.length} expenses`;
-  $("shareGroupBtn").style.display = "inline-flex";
-
+  $("groupTitle").textContent = name;
+  $("shareBtn").style.display = "inline-flex";
   renderAll();
   subscribeRealtime();
   switchTab("expenses");
   showView("groupView");
-  hideLoading();
+  done();
 }
 
 $("backBtn").addEventListener("click", () => {
-  if (realtimeChannel) db.removeChannel(realtimeChannel);
+  if (rtChannel) db.removeChannel(rtChannel);
+  $("shareBtn").style.display = "none";
   showView("landingView");
-  $("shareGroupBtn").style.display = "none";
-  loadRecentGroups();
+  loadRecent();
 });
 
-$("shareGroupBtn").addEventListener("click", () => {
-  const url = `${location.origin}${location.pathname}?group=${currentGroup.id}&name=${encodeURIComponent(currentGroup.name)}`;
-  navigator.clipboard.writeText(url).then(() => showToast("Link copied to clipboard! 🔗"));
+$("shareBtn").addEventListener("click", () => {
+  const url = `${location.origin}${location.pathname}?g=${group.id}&n=${encodeURIComponent(group.name)}`;
+  navigator.clipboard.writeText(url).then(() => toast("Link copied! 🔗"));
 });
 
-function checkUrlParams() {
-  const params = new URLSearchParams(location.search);
-  const groupId = params.get("group");
-  const groupName = params.get("name");
-  if (groupId && groupName) {
+function checkUrl() {
+  const p = new URLSearchParams(location.search);
+  if (p.get("g") && p.get("n")) {
     history.replaceState({}, "", location.pathname);
-    openGroup(groupId, decodeURIComponent(groupName));
+    openGroup(p.get("g"), decodeURIComponent(p.get("n")));
   }
 }
 
+// ---- FETCH ----
+
 async function fetchMembers() {
-  const { data } = await db.from("members").select("*").eq("group_id", currentGroup.id).order("created_at");
+  const { data } = await db.from("members").select("*").eq("group_id", group.id).order("created_at");
   members = data || [];
 }
-
 async function fetchExpenses() {
-  const { data } = await db.from("expenses").select("*, expense_splits(*)").eq("group_id", currentGroup.id).order("created_at", { ascending: false });
+  const { data } = await db.from("expenses").select("*, expense_splits(*)").eq("group_id", group.id).order("created_at", { ascending: false });
   expenses = data || [];
 }
-
 async function fetchSettlements() {
-  const { data } = await db.from("settlements").select("*").eq("group_id", currentGroup.id).order("settled_at", { ascending: false });
+  const { data } = await db.from("settlements").select("*").eq("group_id", group.id).order("settled_at", { ascending: false });
   settlements = data || [];
 }
 
 function subscribeRealtime() {
-  if (realtimeChannel) db.removeChannel(realtimeChannel);
-  realtimeChannel = db
-    .channel(`group-${currentGroup.id}`)
-    .on("postgres_changes", { event: "*", schema: "public", table: "members", filter: `group_id=eq.${currentGroup.id}` }, async () => {
-      await fetchMembers();
-      renderAll();
-    })
-    .on("postgres_changes", { event: "*", schema: "public", table: "expenses", filter: `group_id=eq.${currentGroup.id}` }, async () => {
-      await fetchExpenses();
-      renderAll();
-    })
-    .on("postgres_changes", { event: "*", schema: "public", table: "settlements", filter: `group_id=eq.${currentGroup.id}` }, async () => {
-      await fetchSettlements();
-      renderAll();
-    })
+  if (rtChannel) db.removeChannel(rtChannel);
+  const refresh = async (fetch) => { await fetch(); renderAll(); };
+  rtChannel = db.channel(`g-${group.id}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "members",     filter: `group_id=eq.${group.id}` }, () => refresh(fetchMembers))
+    .on("postgres_changes", { event: "*", schema: "public", table: "expenses",    filter: `group_id=eq.${group.id}` }, () => refresh(fetchExpenses))
+    .on("postgres_changes", { event: "*", schema: "public", table: "settlements", filter: `group_id=eq.${group.id}` }, () => refresh(fetchSettlements))
     .subscribe();
 }
 
+// ---- RENDER ----
+
 function renderAll() {
   renderMembers();
-  renderMemberSelects();
   renderExpenses();
   renderBalances();
   renderSettlements();
-  renderCategoryBreakdown();
-  renderTopSpenders();
+  renderInsightCharts();
   $("groupMeta").textContent = `${members.length} members · ${expenses.length} expenses`;
 }
 
 function renderMembers() {
-  if (!members.length) {
-    $("membersList").innerHTML = `<span class="muted">No members yet</span>`;
-    return;
-  }
-  $("membersList").innerHTML = members
-    .map((m) => `<div class="member-chip"><div class="avatar">${m.name[0].toUpperCase()}</div>${m.name}</div>`)
-    .join("");
-}
-
-function renderMemberSelects() {
-  const options = members.map((m) => `<option value="${m.id}">${m.name}</option>`).join("");
-  $("paidBy").innerHTML = options || `<option disabled>Add members first</option>`;
-  $("settleFrom").innerHTML = options || `<option disabled>Add members first</option>`;
-  $("settleTo").innerHTML = options || `<option disabled>Add members first</option>`;
-  renderCustomSplitInputs();
+  const opts = members.map(m => `<option value="${m.id}">${m.name}</option>`).join("");
+  $("membersList").innerHTML = members.length
+    ? members.map(m => `<div class="chip"><div class="av">${m.name[0].toUpperCase()}</div>${m.name}</div>`).join("")
+    : `<span class="dim">No members yet</span>`;
+  ["paidBy","settleFrom","settleTo"].forEach(id => {
+    $(id).innerHTML = opts || `<option disabled>Add members first</option>`;
+  });
+  renderCustomFields();
 }
 
 $("addMemberBtn").addEventListener("click", async () => {
-  const name = $("newMemberName").value.trim();
-  if (!name) return showToast("Enter a member name", "error");
-  if (members.find((m) => m.name.toLowerCase() === name.toLowerCase())) return showToast("Member already exists", "error");
-
-  const { error } = await db.from("members").insert({ group_id: currentGroup.id, name });
-  if (error) return showToast("Error adding member", "error");
-
-  $("newMemberName").value = "";
-  showToast(`${name} added!`);
+  const name = $("newMember").value.trim();
+  if (!name) return toast("Enter a name", "error");
+  if (members.find(m => m.name.toLowerCase() === name.toLowerCase())) return toast("Already exists", "error");
+  const { error } = await db.from("members").insert({ group_id: group.id, name });
+  if (error) return toast("Error", "error");
+  $("newMember").value = "";
+  toast(`${name} added!`);
 });
+$("newMember").addEventListener("keydown", e => { if (e.key === "Enter") $("addMemberBtn").click(); });
 
-$("newMemberName").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") $("addMemberBtn").click();
-});
+// ---- SPLIT TOGGLE ----
 
-document.querySelectorAll(".split-btn").forEach((btn) => {
+document.querySelectorAll(".tog").forEach(btn => {
   btn.addEventListener("click", () => {
-    document.querySelectorAll(".split-btn").forEach((b) => b.classList.remove("active"));
+    document.querySelectorAll(".tog").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
     splitType = btn.dataset.split;
-    $("customSplitSection").style.display = splitType === "custom" ? "block" : "none";
-    renderCustomSplitInputs();
+    $("customInputs").style.display = splitType === "custom" ? "block" : "none";
+    renderCustomFields();
   });
 });
 
-function renderCustomSplitInputs() {
+function renderCustomFields() {
   if (splitType !== "custom") return;
-  $("customSplitInputs").innerHTML = members
-    .map(
-      (m) => `
-    <div class="input-row" style="margin-bottom:8px">
-      <label style="min-width:100px;display:flex;align-items:center;font-size:0.85rem;color:var(--text-secondary)">${m.name}</label>
-      <input type="number" class="custom-split-input" data-member="${m.id}" placeholder="0.00" min="0" step="0.01" oninput="updateSplitRemaining()" />
-    </div>`
-    )
-    .join("");
+  $("customFields").innerHTML = members.map(m => `
+    <div class="row mb12">
+      <label style="min-width:90px;margin:0;color:var(--text2)">${m.name}</label>
+      <input type="number" class="csplit" data-id="${m.id}" placeholder="0.00" oninput="updateRemaining()" />
+    </div>`).join("");
 }
 
-function updateSplitRemaining() {
-  const total = parseFloat($("expenseAmount").value) || 0;
-  const entered = [...document.querySelectorAll(".custom-split-input")].reduce((s, i) => s + (parseFloat(i.value) || 0), 0);
-  const remaining = total - entered;
-  $("splitRemaining").textContent = `₹${remaining.toFixed(2)}`;
-  $("splitRemaining").style.color = Math.abs(remaining) < 0.01 ? "var(--green-primary)" : "var(--red)";
+function updateRemaining() {
+  const total = parseFloat($("expAmount").value) || 0;
+  const used = [...document.querySelectorAll(".csplit")].reduce((s, i) => s + (parseFloat(i.value) || 0), 0);
+  const rem = total - used;
+  $("remaining").textContent = `₹${rem.toFixed(2)}`;
+  $("remaining").style.color = Math.abs(rem) < 0.01 ? "var(--green)" : "var(--red)";
 }
+$("expAmount").addEventListener("input", updateRemaining);
 
-$("expenseAmount").addEventListener("input", updateSplitRemaining);
+// ---- AI CATEGORIZE ----
 
-let categoryDebounce;
-$("expenseDesc").addEventListener("input", () => {
-  clearTimeout(categoryDebounce);
-  const desc = $("expenseDesc").value.trim();
-  if (!desc) { $("categoryBadge").textContent = "🏷️ —"; return; }
-  $("categoryBadge").textContent = "🏷️ ...";
-  categoryDebounce = setTimeout(() => categorizeExpense(desc), 800);
+let catTimer;
+$("expDesc").addEventListener("input", () => {
+  clearTimeout(catTimer);
+  const desc = $("expDesc").value.trim();
+  if (!desc) { $("catBadge").textContent = "🏷️ —"; return; }
+  $("catBadge").textContent = "🏷️ ...";
+  catTimer = setTimeout(async () => {
+    const cat = await aiCategory(desc);
+    $("catBadge").textContent = `🏷️ ${cat}`;
+    $("catBadge").dataset.cat = cat;
+  }, 800);
 });
 
-async function categorizeExpense(description) {
-  const category = await aiCategorize(description);
-  $("categoryBadge").textContent = `🏷️ ${category}`;
-  $("categoryBadge").dataset.category = category;
-}
+// ---- ADD EXPENSE ----
 
-$("addExpenseBtn").addEventListener("click", async () => {
-  const desc = $("expenseDesc").value.trim();
-  const amount = parseFloat($("expenseAmount").value);
+$("addExpBtn").addEventListener("click", async () => {
+  const desc = $("expDesc").value.trim();
+  const amount = parseFloat($("expAmount").value);
   const paidBy = $("paidBy").value;
-  const category = $("categoryBadge").dataset.category || "General";
+  const category = $("catBadge").dataset.cat || "General";
 
-  if (!desc) return showToast("Enter a description", "error");
-  if (!amount || amount <= 0) return showToast("Enter a valid amount", "error");
-  if (!paidBy) return showToast("Select who paid", "error");
-  if (!members.length) return showToast("Add members first", "error");
+  if (!desc) return toast("Enter a description", "error");
+  if (!amount || amount <= 0) return toast("Enter a valid amount", "error");
+  if (!members.length) return toast("Add members first", "error");
 
   let splits = [];
-
   if (splitType === "equal") {
-    const share = amount / members.length;
-    splits = members.map((m) => ({ member_id: m.id, amount: parseFloat(share.toFixed(2)) }));
+    const share = parseFloat((amount / members.length).toFixed(2));
+    splits = members.map(m => ({ member_id: m.id, amount: share }));
   } else {
-    const inputs = [...document.querySelectorAll(".custom-split-input")];
-    splits = inputs.map((i) => ({ member_id: i.dataset.member, amount: parseFloat(i.value) || 0 }));
+    splits = [...document.querySelectorAll(".csplit")].map(i => ({ member_id: i.dataset.id, amount: parseFloat(i.value) || 0 }));
     const total = splits.reduce((s, i) => s + i.amount, 0);
-    if (Math.abs(total - amount) > 0.01) return showToast("Custom splits must add up to total amount", "error");
+    if (Math.abs(total - amount) > 0.01) return toast("Splits must add up to total", "error");
   }
 
-  showLoading("Adding expense...");
-  const { data: expense, error } = await db
-    .from("expenses")
-    .insert({ group_id: currentGroup.id, description: desc, amount, paid_by: paidBy, split_type: splitType, category })
-    .select()
-    .single();
+  loading("Adding...");
+  const { data: exp, error } = await db.from("expenses")
+    .insert({ group_id: group.id, description: desc, amount, paid_by: paidBy, split_type: splitType, category })
+    .select().single();
+  if (error) { done(); return toast("Error adding expense", "error"); }
 
-  if (error) { hideLoading(); return showToast("Error adding expense", "error"); }
-
-  const splitsWithExpense = splits.map((s) => ({ ...s, expense_id: expense.id }));
-  await db.from("expense_splits").insert(splitsWithExpense);
-
-  hideLoading();
-  $("expenseDesc").value = "";
-  $("expenseAmount").value = "";
-  $("categoryBadge").textContent = "🏷️ —";
-  delete $("categoryBadge").dataset.category;
-  showToast("Expense added! 💳");
+  await db.from("expense_splits").insert(splits.map(s => ({ ...s, expense_id: exp.id })));
+  done();
+  $("expDesc").value = "";
+  $("expAmount").value = "";
+  $("catBadge").textContent = "🏷️ —";
+  delete $("catBadge").dataset.cat;
+  toast("Expense added! 💳");
 });
 
 function renderExpenses() {
-  const filter = $("categoryFilter").value;
-  const filtered = filter ? expenses.filter((e) => e.category === filter) : expenses;
-
-  if (!filtered.length) {
-    $("expensesList").innerHTML = emptyState("💳", "No expenses yet. Add one above!");
-    return;
-  }
-
-  $("expensesList").innerHTML = filtered
-    .map((e) => {
-      const payer = members.find((m) => m.id === e.paid_by)?.name || "Unknown";
-      const date = new Date(e.created_at).toLocaleDateString();
-      return `
-      <div class="expense-item">
-        <div class="expense-top">
-          <span class="expense-desc">${e.description}</span>
-          <span class="expense-amount">₹${parseFloat(e.amount).toFixed(2)}</span>
-        </div>
-        <div class="expense-meta">
-          <span class="muted">Paid by <strong style="color:var(--text-secondary)">${payer}</strong></span>
-          <span class="category-tag">${categoryEmoji(e.category)} ${e.category}</span>
-          <span class="muted">${e.split_type} split · ${date}</span>
-        </div>
-        <div class="expense-actions">
-          <button class="btn btn-danger" onclick="deleteExpense('${e.id}')">🗑 Delete</button>
-        </div>
-      </div>`;
-    })
-    .join("");
+  const filter = $("catFilter").value;
+  const list = filter ? expenses.filter(e => e.category === filter) : expenses;
+  if (!list.length) { $("expList").innerHTML = empty("💳", "No expenses yet"); return; }
+  $("expList").innerHTML = list.map(e => {
+    const payer = members.find(m => m.id === e.paid_by)?.name || "?";
+    const date = new Date(e.created_at).toLocaleDateString();
+    return `
+    <div class="exp-item">
+      <div class="exp-top">
+        <span class="exp-name">${e.description}</span>
+        <span class="exp-amt">₹${parseFloat(e.amount).toFixed(2)}</span>
+      </div>
+      <div class="exp-meta">
+        <span class="dim">by ${payer} · ${date}</span>
+        <span class="tag">${catEmoji(e.category)} ${e.category}</span>
+        <button class="btn danger" onclick="deleteExp('${e.id}')">🗑</button>
+      </div>
+    </div>`;
+  }).join("");
 }
 
-$("categoryFilter").addEventListener("change", renderExpenses);
+$("catFilter").addEventListener("change", renderExpenses);
 
-async function deleteExpense(id) {
+async function deleteExp(id) {
   if (!confirm("Delete this expense?")) return;
-  showLoading("Deleting...");
+  loading("Deleting...");
   await db.from("expenses").delete().eq("id", id);
-  hideLoading();
-  showToast("Expense deleted");
+  done();
+  toast("Deleted");
 }
 
-function calculateBalances() {
-  const balances = {};
-  members.forEach((m) => (balances[m.id] = 0));
+// ---- BALANCES ----
 
-  expenses.forEach((e) => {
-    balances[e.paid_by] += parseFloat(e.amount);
-    (e.expense_splits || []).forEach((s) => {
-      balances[s.member_id] -= parseFloat(s.amount);
-    });
+function getBalances() {
+  const bal = {};
+  members.forEach(m => bal[m.id] = 0);
+  expenses.forEach(e => {
+    bal[e.paid_by] += parseFloat(e.amount);
+    (e.expense_splits || []).forEach(s => bal[s.member_id] -= parseFloat(s.amount));
   });
-
-  // when someone pays back, their balance goes up, receiver's goes down
-  settlements.forEach((s) => {
-    balances[s.from_member] += parseFloat(s.amount);
-    balances[s.to_member] -= parseFloat(s.amount);
+  settlements.forEach(s => {
+    bal[s.from_member] += parseFloat(s.amount);
+    bal[s.to_member] -= parseFloat(s.amount);
   });
-
-  return balances;
+  return bal;
 }
 
-function simplifyDebts(balances) {
+function getDebts(bal) {
   const creditors = [], debtors = [];
-  Object.entries(balances).forEach(([id, bal]) => {
-    if (bal > 0.01) creditors.push({ id, amount: bal });
-    else if (bal < -0.01) debtors.push({ id, amount: -bal });
+  Object.entries(bal).forEach(([id, b]) => {
+    if (b > 0.01) creditors.push({ id, amount: b });
+    else if (b < -0.01) debtors.push({ id, amount: -b });
   });
-
   const debts = [];
   let i = 0, j = 0;
   while (i < debtors.length && j < creditors.length) {
@@ -375,207 +308,102 @@ function simplifyDebts(balances) {
 }
 
 function renderBalances() {
-  const balances = calculateBalances();
+  const bal = getBalances();
+  if (!members.length) { $("balList").innerHTML = empty("⚖️", "Add members first"); $("debtList").innerHTML = ""; return; }
 
-  if (!members.length) {
-    $("balancesList").innerHTML = emptyState("⚖️", "Add members to see balances");
-    $("debtsList").innerHTML = "";
-    return;
-  }
+  $("balList").innerHTML = members.map(m => {
+    const b = bal[m.id] || 0;
+    const cls = b > 0.01 ? "pos" : b < -0.01 ? "neg" : "zero";
+    const label = b > 0.01 ? "gets back" : b < -0.01 ? "owes" : "settled up";
+    return `<div class="bal-item">
+      <div class="chip" style="display:inline-flex"><div class="av">${m.name[0].toUpperCase()}</div>${m.name}</div>
+      <span><span class="${cls}">₹${Math.abs(b).toFixed(2)}</span> <span class="dim">${label}</span></span>
+    </div>`;
+  }).join("");
 
-  $("balancesList").innerHTML = members
-    .map((m) => {
-      const bal = balances[m.id] || 0;
-      const cls = bal > 0.01 ? "positive" : bal < -0.01 ? "negative" : "zero";
-      const label = bal > 0.01 ? "gets back" : bal < -0.01 ? "owes" : "settled";
-      return `
-      <div class="balance-item">
-        <div class="balance-name">
-          <div class="member-chip" style="display:inline-flex">
-            <div class="avatar">${m.name[0].toUpperCase()}</div>${m.name}
-          </div>
-        </div>
-        <div>
-          <span class="balance-amount ${cls}">₹${Math.abs(bal).toFixed(2)}</span>
-          <span class="muted" style="margin-left:6px">${label}</span>
-        </div>
-      </div>`;
-    })
-    .join("");
-
-  const debts = simplifyDebts(balances);
-  if (!debts.length) {
-    $("debtsList").innerHTML = emptyState("🎉", "All settled up!");
-    return;
-  }
-
-  $("debtsList").innerHTML = debts
-    .map((d) => {
-      const from = members.find((m) => m.id === d.from)?.name || "?";
-      const to = members.find((m) => m.id === d.to)?.name || "?";
-      return `
-      <div class="debt-item">
-        <div class="debt-text"><strong>${from}</strong> owes <strong>${to}</strong></div>
-        <span class="debt-amount">₹${d.amount.toFixed(2)}</span>
-      </div>`;
-    })
-    .join("");
+  const debts = getDebts(bal);
+  $("debtList").innerHTML = debts.length
+    ? debts.map(d => {
+        const from = members.find(m => m.id === d.from)?.name || "?";
+        const to = members.find(m => m.id === d.to)?.name || "?";
+        return `<div class="debt-item"><span><b>${from}</b> owes <b>${to}</b></span><span class="neg">₹${d.amount.toFixed(2)}</span></div>`;
+      }).join("")
+    : empty("🎉", "All settled up!");
 }
+
+// ---- SETTLEMENTS ----
 
 $("settleBtn").addEventListener("click", async () => {
   const from = $("settleFrom").value;
   const to = $("settleTo").value;
-  const amount = parseFloat($("settleAmount").value);
-
-  if (!from || !to) return showToast("Select both members", "error");
-  if (from === to) return showToast("Cannot settle with yourself", "error");
-  if (!amount || amount <= 0) return showToast("Enter a valid amount", "error");
-
-  showLoading("Recording settlement...");
-  const { error } = await db.from("settlements").insert({ group_id: currentGroup.id, from_member: from, to_member: to, amount });
-  hideLoading();
-
-  if (error) return showToast("Error recording settlement", "error");
-
-  $("settleAmount").value = "";
-  showToast("Settlement recorded! ✅");
+  const amount = parseFloat($("settleAmt").value);
+  if (!from || !to) return toast("Select both members", "error");
+  if (from === to) return toast("Can't settle with yourself", "error");
+  if (!amount || amount <= 0) return toast("Enter a valid amount", "error");
+  loading("Saving...");
+  const { error } = await db.from("settlements").insert({ group_id: group.id, from_member: from, to_member: to, amount });
+  done();
+  if (error) return toast("Error", "error");
+  $("settleAmt").value = "";
+  toast("Settled! ✅");
 });
 
 function renderSettlements() {
-  if (!settlements.length) {
-    $("settlementHistory").innerHTML = emptyState("📜", "No settlements yet");
-    return;
-  }
-
-  $("settlementHistory").innerHTML = settlements
-    .map((s) => {
-      const from = members.find((m) => m.id === s.from_member)?.name || "?";
-      const to = members.find((m) => m.id === s.to_member)?.name || "?";
-      const date = new Date(s.settled_at).toLocaleDateString();
-      return `
-      <div class="settlement-item">
-        <span class="settlement-text">💸 <strong>${from}</strong> paid <strong>${to}</strong> · ${date}</span>
-        <span class="settlement-amount">₹${parseFloat(s.amount).toFixed(2)}</span>
-      </div>`;
-    })
-    .join("");
+  if (!settlements.length) { $("settleList").innerHTML = empty("📜", "No settlements yet"); return; }
+  $("settleList").innerHTML = settlements.map(s => {
+    const from = members.find(m => m.id === s.from_member)?.name || "?";
+    const to = members.find(m => m.id === s.to_member)?.name || "?";
+    return `<div class="settle-item">
+      <span class="dim">💸 <b style="color:var(--text)">${from}</b> paid <b style="color:var(--text)">${to}</b> · ${new Date(s.settled_at).toLocaleDateString()}</span>
+      <span class="pos">₹${parseFloat(s.amount).toFixed(2)}</span>
+    </div>`;
+  }).join("");
 }
 
-function renderCategoryBreakdown() {
+// ---- INSIGHTS CHARTS ----
+
+function renderInsightCharts() {
   if (!expenses.length) {
-    $("categoryBreakdown").innerHTML = emptyState("📊", "No expenses to analyze");
+    $("catBreakdown").innerHTML = empty("📊", "No data yet");
+    $("topSpenders").innerHTML = empty("🏆", "No data yet");
     return;
   }
 
   const cats = {};
-  expenses.forEach((e) => {
-    cats[e.category] = (cats[e.category] || 0) + parseFloat(e.amount);
-  });
-
+  expenses.forEach(e => cats[e.category] = (cats[e.category] || 0) + parseFloat(e.amount));
   const total = Object.values(cats).reduce((a, b) => a + b, 0);
-  const sorted = Object.entries(cats).sort((a, b) => b[1] - a[1]);
-
-  $("categoryBreakdown").innerHTML = sorted
-    .map(([cat, amt]) => {
-      const pct = ((amt / total) * 100).toFixed(1);
-      return `
-      <div class="category-bar-item">
-        <div class="category-bar-label">
-          <span>${categoryEmoji(cat)} ${cat}</span>
-          <span>₹${amt.toFixed(2)} (${pct}%)</span>
-        </div>
-        <div class="category-bar-track">
-          <div class="category-bar-fill" style="width:${pct}%"></div>
-        </div>
-      </div>`;
-    })
-    .join("");
-}
-
-function renderTopSpenders() {
-  if (!expenses.length || !members.length) {
-    $("topSpenders").innerHTML = emptyState("🏆", "No data yet");
-    return;
-  }
+  $("catBreakdown").innerHTML = Object.entries(cats).sort((a,b) => b[1]-a[1]).map(([cat, amt]) => {
+    const pct = ((amt / total) * 100).toFixed(1);
+    return `<div class="bar-item">
+      <div class="bar-label"><span>${catEmoji(cat)} ${cat}</span><span>₹${amt.toFixed(2)} (${pct}%)</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+    </div>`;
+  }).join("");
 
   const spent = {};
-  members.forEach((m) => (spent[m.id] = 0));
-  expenses.forEach((e) => {
-    spent[e.paid_by] = (spent[e.paid_by] || 0) + parseFloat(e.amount);
-  });
-
-  const sorted = members
-    .map((m) => ({ name: m.name, amount: spent[m.id] || 0 }))
-    .sort((a, b) => b.amount - a.amount);
-
-  $("topSpenders").innerHTML = sorted
-    .map((s, i) => `
-      <div class="spender-item">
-        <div class="spender-rank">${i + 1}</div>
-        <div class="spender-name">${s.name}</div>
-        <div class="spender-amount">₹${s.amount.toFixed(2)}</div>
-      </div>`)
+  members.forEach(m => spent[m.id] = 0);
+  expenses.forEach(e => spent[e.paid_by] = (spent[e.paid_by] || 0) + parseFloat(e.amount));
+  $("topSpenders").innerHTML = members
+    .map(m => ({ name: m.name, amt: spent[m.id] || 0 }))
+    .sort((a, b) => b.amt - a.amt)
+    .map((s, i) => `<div class="spender"><div class="rank">${i+1}</div><span style="flex:1">${s.name}</span><span class="pos">₹${s.amt.toFixed(2)}</span></div>`)
     .join("");
 }
 
-async function aiCategorize(description) {
-  const valid = ["Food", "Travel", "Rent", "Entertainment", "Shopping", "Utilities", "General"];
-  try {
-    const res = await fetch(CONFIG.GROQ_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${CONFIG.GROQ_API_KEY}` },
-      body: JSON.stringify({
-        model: CONFIG.GROQ_MODEL,
-        messages: [
-          { role: "system", content: "You are an expense categorizer. Reply with ONLY one word from the given list. No punctuation, no explanation." },
-          { role: "user", content: `Categorize this expense into exactly ONE word from: Food, Travel, Rent, Entertainment, Shopping, Utilities, General.\nExpense: "${description}"` }
-        ],
-        max_tokens: 10,
-        temperature: 0
-      })
-    });
-    const data = await res.json();
-    const raw = data.choices?.[0]?.message?.content || "";
-    const cleaned = raw.replace(/[^a-zA-Z]/g, "").trim();
-    const match = valid.find((v) => v.toLowerCase() === cleaned.toLowerCase());
-    return match || "General";
-  } catch {
-    return "General";
-  }
-}
+// ---- AI INSIGHTS ----
 
-$("generateInsightsBtn").addEventListener("click", async () => {
-  if (!expenses.length) return showToast("Add some expenses first", "error");
+$("insightsBtn").addEventListener("click", async () => {
+  if (!expenses.length) return toast("Add expenses first", "error");
+  $("insightsBtn").disabled = true;
+  $("insightsBtn").textContent = "⏳ Analyzing...";
+  $("insightsOut").className = "insight-box";
+  $("insightsOut").textContent = "Analyzing spending patterns...";
 
-  $("generateInsightsBtn").disabled = true;
-  $("generateInsightsBtn").textContent = "⏳ Analyzing...";
-  $("insightsOutput").className = "insights-output";
-  $("insightsOutput").textContent = "Analyzing your group's spending patterns...";
-
-  const balances = calculateBalances();
-  const debts = simplifyDebts(balances);
-
-  const summary = {
-    totalExpenses: expenses.reduce((s, e) => s + parseFloat(e.amount), 0).toFixed(2),
-    expenseCount: expenses.length,
-    members: members.map((m) => m.name),
-    categories: (() => {
-      const c = {};
-      expenses.forEach((e) => (c[e.category] = (c[e.category] || 0) + parseFloat(e.amount)));
-      return c;
-    })(),
-    topPayer: (() => {
-      const p = {};
-      expenses.forEach((e) => (p[e.paid_by] = (p[e.paid_by] || 0) + parseFloat(e.amount)));
-      const top = Object.entries(p).sort((a, b) => b[1] - a[1])[0];
-      return top ? members.find((m) => m.id === top[0])?.name : "N/A";
-    })(),
-    pendingDebts: debts.map((d) => ({
-      from: members.find((m) => m.id === d.from)?.name,
-      to: members.find((m) => m.id === d.to)?.name,
-      amount: d.amount.toFixed(2),
-    })),
-  };
+  const bal = getBalances();
+  const debts = getDebts(bal);
+  const cats = {};
+  expenses.forEach(e => cats[e.category] = (cats[e.category] || 0) + parseFloat(e.amount));
+  const total = expenses.reduce((s, e) => s + parseFloat(e.amount), 0).toFixed(2);
 
   try {
     const res = await fetch(CONFIG.GROQ_URL, {
@@ -584,45 +412,65 @@ $("generateInsightsBtn").addEventListener("click", async () => {
       body: JSON.stringify({
         model: CONFIG.GROQ_MODEL,
         messages: [
-          { role: "system", content: "You are a smart expense analyst. Be concise, friendly, and use emojis." },
-          { role: "user", content: `Analyze this group expense data and provide 4-5 concise insights. Include spending patterns, who's contributing most, category observations, and tips to save money. Under 200 words.\n\nGroup Data:\n- Total spent: ₹${summary.totalExpenses}\n- Number of expenses: ${summary.expenseCount}\n- Members: ${summary.members.join(", ")}\n- Category breakdown: ${JSON.stringify(summary.categories)}\n- Top payer: ${summary.topPayer}\n- Pending debts: ${JSON.stringify(summary.pendingDebts)}` }
+          { role: "system", content: "You are a friendly expense analyst. Be concise and use emojis." },
+          { role: "user", content: `Give 4-5 short insights about this group's spending. Under 180 words.\n\nTotal: ₹${total}\nMembers: ${members.map(m=>m.name).join(", ")}\nCategories: ${JSON.stringify(cats)}\nDebts: ${JSON.stringify(debts.map(d => ({ from: members.find(m=>m.id===d.from)?.name, to: members.find(m=>m.id===d.to)?.name, amount: d.amount.toFixed(2) })))}` }
         ],
-        max_tokens: 400,
+        max_tokens: 350,
         temperature: 0.7
       })
     });
-
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error?.message || `HTTP ${res.status}`);
-    }
-
+    if (!res.ok) throw new Error((await res.json()).error?.message);
     const data = await res.json();
     const text = data.choices?.[0]?.message?.content;
-    if (!text) throw new Error("Empty response from Groq");
-    $("insightsOutput").textContent = text;
-    $("insightsOutput").className = "insights-output loaded";
+    if (!text) throw new Error("Empty response");
+    $("insightsOut").textContent = text;
+    $("insightsOut").className = "insight-box loaded";
   } catch (err) {
-    $("insightsOutput").textContent = `❌ Error: ${err.message}`;
+    $("insightsOut").textContent = `❌ ${err.message}`;
   }
 
-  $("generateInsightsBtn").disabled = false;
-  $("generateInsightsBtn").textContent = "Generate Insights";
+  $("insightsBtn").disabled = false;
+  $("insightsBtn").textContent = "Analyze";
 });
 
-document.querySelectorAll(".tab").forEach((tab) => {
+// ---- TABS ----
+
+document.querySelectorAll(".tab").forEach(tab => {
   tab.addEventListener("click", () => switchTab(tab.dataset.tab));
 });
 
 function switchTab(name) {
-  document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
-  document.querySelectorAll(".tab-content").forEach((c) => c.classList.toggle("active", c.id === `tab-${name}`));
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === name));
+  document.querySelectorAll(".tab-pane").forEach(p => p.classList.toggle("active", p.id === `tab-${name}`));
 }
 
-function categoryEmoji(cat) {
-  const map = { Food: "🍔", Travel: "✈️", Rent: "🏠", Entertainment: "🎬", Shopping: "🛍️", Utilities: "💡", General: "📦" };
-  return map[cat] || "📦";
+// ---- HELPERS ----
+
+async function aiCategory(desc) {
+  const valid = ["Food","Travel","Rent","Entertainment","Shopping","Utilities","General"];
+  try {
+    const res = await fetch(CONFIG.GROQ_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${CONFIG.GROQ_API_KEY}` },
+      body: JSON.stringify({
+        model: CONFIG.GROQ_MODEL,
+        messages: [
+          { role: "system", content: "Reply with ONE word only from the list given. No punctuation." },
+          { role: "user", content: `Category for: "${desc}". Choose from: Food, Travel, Rent, Entertainment, Shopping, Utilities, General` }
+        ],
+        max_tokens: 5, temperature: 0
+      })
+    });
+    const data = await res.json();
+    const raw = (data.choices?.[0]?.message?.content || "").replace(/[^a-zA-Z]/g, "");
+    return valid.find(v => v.toLowerCase() === raw.toLowerCase()) || "General";
+  } catch { return "General"; }
 }
 
-loadRecentGroups();
-checkUrlParams();
+function catEmoji(cat) {
+  return { Food:"🍔", Travel:"✈️", Rent:"🏠", Entertainment:"🎬", Shopping:"🛍️", Utilities:"💡", General:"📦" }[cat] || "📦";
+}
+
+// ---- INIT ----
+loadRecent();
+checkUrl();

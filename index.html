@@ -3,224 +3,174 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SplitWise – Smart Expense Splitter</title>
+  <title>SplitSmart – Expense Splitter</title>
   <link rel="stylesheet" href="css/style.css" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 </head>
 <body>
 
-  <!-- NAVBAR -->
   <nav class="navbar">
-    <div class="nav-brand">
-      <span class="logo-icon">💸</span>
-      <span class="logo-text">SplitSmart</span>
-    </div>
-    <div class="nav-actions">
-      <button class="btn btn-outline" id="shareGroupBtn" style="display:none">🔗 Share Group</button>
-    </div>
+    <div class="brand">💸 SplitSmart</div>
+    <button class="btn outline" id="shareBtn" style="display:none">🔗 Share</button>
   </nav>
 
-  <!-- MAIN APP -->
-  <div class="app-container">
+  <div class="container">
 
-    <!-- LANDING / GROUP SELECTION -->
+    <!-- LANDING -->
     <div id="landingView" class="view active">
       <div class="hero">
-        <h1>Split expenses,<br /><span class="gradient-text">not friendships.</span></h1>
-        <p class="hero-sub">Track shared expenses in real-time. No sign-up needed.</p>
+        <h1>Split expenses,<br><span class="green">not friendships.</span></h1>
+        <p>Real-time expense splitting. No sign-up needed.</p>
       </div>
 
-      <div class="card create-group-card">
-        <h2>Create a New Group</h2>
-        <div class="input-row">
-          <input type="text" id="newGroupName" placeholder="e.g. Goa Trip, Flat Expenses..." maxlength="50" />
-          <button class="btn btn-primary" id="createGroupBtn">Create</button>
+      <div class="card center-card">
+        <h2>Create a Group</h2>
+        <div class="row">
+          <input type="text" id="newGroupName" placeholder="e.g. Goa Trip, Flat..." maxlength="50" />
+          <button class="btn primary" id="createGroupBtn">Create</button>
         </div>
       </div>
 
-      <div class="card" id="recentGroupsCard" style="display:none">
+      <div class="card center-card" id="recentCard" style="display:none">
         <h2>Recent Groups</h2>
-        <div id="recentGroupsList" class="groups-list"></div>
-      </div>
-
-      <div class="card join-card">
-        <h2>Join via Link</h2>
-        <p class="muted">Share a group link with friends and they'll land directly in your group.</p>
+        <div id="recentList"></div>
       </div>
     </div>
 
-    <!-- GROUP DASHBOARD -->
+    <!-- GROUP VIEW -->
     <div id="groupView" class="view">
 
-      <!-- Group Header -->
       <div class="group-header">
-        <button class="btn btn-ghost back-btn" id="backBtn">← Back</button>
+        <button class="btn ghost" id="backBtn">← Back</button>
         <div>
-          <h1 id="groupTitle">Group Name</h1>
-          <span class="muted" id="groupMeta"></span>
+          <h2 id="groupTitle"></h2>
+          <span class="dim" id="groupMeta"></span>
         </div>
       </div>
 
-      <!-- Tab Navigation -->
       <div class="tabs">
         <button class="tab active" data-tab="expenses">💳 Expenses</button>
         <button class="tab" data-tab="balances">⚖️ Balances</button>
-        <button class="tab" data-tab="settlements">✅ Settlements</button>
-        <button class="tab" data-tab="insights">🤖 AI Insights</button>
+        <button class="tab" data-tab="settle">✅ Settle</button>
+        <button class="tab" data-tab="insights">🤖 Insights</button>
       </div>
 
-      <!-- TAB: EXPENSES -->
-      <div id="tab-expenses" class="tab-content active">
+      <!-- EXPENSES TAB -->
+      <div id="tab-expenses" class="tab-pane active">
         <div class="two-col">
-
-          <!-- Left: Members + Add Expense -->
-          <div class="left-col">
+          <div>
             <div class="card">
               <h3>👥 Members</h3>
-              <div id="membersList" class="members-list"></div>
-              <div class="input-row mt">
-                <input type="text" id="newMemberName" placeholder="Add member name..." maxlength="30" />
-                <button class="btn btn-secondary" id="addMemberBtn">Add</button>
+              <div id="membersList" class="chips"></div>
+              <div class="row mt8">
+                <input type="text" id="newMember" placeholder="Add member..." maxlength="30" />
+                <button class="btn outline" id="addMemberBtn">Add</button>
               </div>
             </div>
 
             <div class="card">
               <h3>➕ Add Expense</h3>
-              <div class="form-group">
-                <label>Description</label>
-                <div class="input-with-ai">
-                  <input type="text" id="expenseDesc" placeholder="e.g. Dinner at restaurant..." />
-                  <span class="ai-badge" id="categoryBadge">🏷️ —</span>
-                </div>
+              <label>Description</label>
+              <div class="row mb12">
+                <input type="text" id="expDesc" placeholder="e.g. Dinner, Petrol..." />
+                <span class="badge" id="catBadge">🏷️ —</span>
               </div>
-              <div class="form-group">
-                <label>Amount (₹)</label>
-                <input type="number" id="expenseAmount" placeholder="0.00" min="0" step="0.01" />
+              <label>Amount (₹)</label>
+              <input type="number" id="expAmount" placeholder="0.00" class="mb12" />
+              <label>Paid By</label>
+              <select id="paidBy" class="mb12"></select>
+              <label>Split</label>
+              <div class="toggle mb12">
+                <button class="tog active" data-split="equal">Equal</button>
+                <button class="tog" data-split="custom">Custom</button>
               </div>
-              <div class="form-group">
-                <label>Paid By</label>
-                <select id="paidBy"></select>
+              <div id="customInputs" style="display:none" class="mb12">
+                <div id="customFields"></div>
+                <p class="dim right">Remaining: <span id="remaining">₹0</span></p>
               </div>
-              <div class="form-group">
-                <label>Split Type</label>
-                <div class="split-toggle">
-                  <button class="split-btn active" data-split="equal">Equal</button>
-                  <button class="split-btn" data-split="custom">Custom</button>
-                </div>
-              </div>
-              <div id="customSplitSection" style="display:none" class="form-group">
-                <label>Custom Amounts per Person</label>
-                <div id="customSplitInputs"></div>
-                <div class="split-remaining">Remaining: <span id="splitRemaining">₹0</span></div>
-              </div>
-              <button class="btn btn-primary full-width" id="addExpenseBtn">Add Expense</button>
+              <button class="btn primary full" id="addExpBtn">Add Expense</button>
             </div>
           </div>
 
-          <!-- Right: Expense List -->
-          <div class="right-col">
-            <div class="card">
-              <div class="card-header-row">
-                <h3>📋 Expense History</h3>
-                <div class="filter-row">
-                  <select id="categoryFilter">
-                    <option value="">All Categories</option>
-                    <option>Food</option>
-                    <option>Travel</option>
-                    <option>Rent</option>
-                    <option>Entertainment</option>
-                    <option>Shopping</option>
-                    <option>Utilities</option>
-                    <option>General</option>
-                  </select>
-                </div>
-              </div>
-              <div id="expensesList" class="expenses-list"></div>
+          <div class="card">
+            <div class="row mb12">
+              <h3>📋 History</h3>
+              <select id="catFilter">
+                <option value="">All</option>
+                <option>Food</option><option>Travel</option><option>Rent</option>
+                <option>Entertainment</option><option>Shopping</option>
+                <option>Utilities</option><option>General</option>
+              </select>
             </div>
+            <div id="expList"></div>
           </div>
-
         </div>
       </div>
 
-      <!-- TAB: BALANCES -->
-      <div id="tab-balances" class="tab-content">
+      <!-- BALANCES TAB -->
+      <div id="tab-balances" class="tab-pane">
         <div class="card">
-          <h3>⚖️ Current Balances</h3>
-          <p class="muted mb">Positive = owed money, Negative = owes money</p>
-          <div id="balancesList"></div>
+          <h3>⚖️ Balances</h3>
+          <p class="dim mb12">Green = gets back money &nbsp;·&nbsp; Red = owes money</p>
+          <div id="balList"></div>
         </div>
-        <div class="card mt">
+        <div class="card">
           <h3>💸 Who Owes Whom</h3>
-          <p class="muted mb">Simplified debt summary</p>
-          <div id="debtsList"></div>
+          <div id="debtList"></div>
         </div>
       </div>
 
-      <!-- TAB: SETTLEMENTS -->
-      <div id="tab-settlements" class="tab-content">
+      <!-- SETTLE TAB -->
+      <div id="tab-settle" class="tab-pane">
         <div class="card">
-          <h3>✅ Settle a Debt</h3>
-          <div class="form-group">
-            <label>From (who is paying)</label>
-            <select id="settleFrom"></select>
-          </div>
-          <div class="form-group">
-            <label>To (who receives)</label>
-            <select id="settleTo"></select>
-          </div>
-          <div class="form-group">
-            <label>Amount (₹)</label>
-            <input type="number" id="settleAmount" placeholder="0.00" min="0" step="0.01" />
-          </div>
-          <button class="btn btn-primary" id="settleBtn">Mark as Settled</button>
+          <h3>✅ Record a Payment</h3>
+          <label>From</label>
+          <select id="settleFrom" class="mb12"></select>
+          <label>To</label>
+          <select id="settleTo" class="mb12"></select>
+          <label>Amount (₹)</label>
+          <input type="number" id="settleAmt" placeholder="0.00" class="mb12" />
+          <button class="btn primary" id="settleBtn">Mark Settled</button>
         </div>
-        <div class="card mt">
-          <h3>📜 Settlement History</h3>
-          <div id="settlementHistory"></div>
+        <div class="card">
+          <h3>📜 History</h3>
+          <div id="settleList"></div>
         </div>
       </div>
 
-      <!-- TAB: AI INSIGHTS -->
-      <div id="tab-insights" class="tab-content">
-        <div class="card ai-card">
-          <div class="ai-header">
-            <span class="ai-icon">🤖</span>
+      <!-- INSIGHTS TAB -->
+      <div id="tab-insights" class="tab-pane">
+        <div class="card">
+          <div class="row mb12">
             <div>
-              <h3>AI Spending Insights</h3>
-              <p class="muted">Powered by Groq AI</p>
+              <h3>🤖 AI Insights</h3>
+              <p class="dim">Powered by Groq AI</p>
             </div>
-            <button class="btn btn-primary" id="generateInsightsBtn">Generate Insights</button>
+            <button class="btn primary" id="insightsBtn">Analyze</button>
           </div>
-          <div id="insightsOutput" class="insights-output">
-            <p class="muted center">Click "Generate Insights" to get AI-powered analysis of your group's spending.</p>
+          <div id="insightsOut" class="insight-box">Click Analyze to get spending insights.</div>
+        </div>
+        <div class="two-col">
+          <div class="card">
+            <h3>📊 By Category</h3>
+            <div id="catBreakdown"></div>
           </div>
-        </div>
-
-        <div class="card mt">
-          <h3>📊 Category Breakdown</h3>
-          <div id="categoryBreakdown"></div>
-        </div>
-
-        <div class="card mt">
-          <h3>🏆 Top Spenders</h3>
-          <div id="topSpenders"></div>
+          <div class="card">
+            <h3>🏆 Top Spenders</h3>
+            <div id="topSpenders"></div>
+          </div>
         </div>
       </div>
 
     </div>
   </div>
 
-  <!-- TOAST NOTIFICATION -->
   <div id="toast" class="toast"></div>
-
-  <!-- LOADING OVERLAY -->
-  <div id="loadingOverlay" class="loading-overlay" style="display:none">
+  <div id="loader" class="loader" style="display:none">
     <div class="spinner"></div>
-    <p id="loadingText">Loading...</p>
+    <p id="loaderText">Loading...</p>
   </div>
 
-  <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/config.js"></script>
   <script src="js/app.js"></script>
