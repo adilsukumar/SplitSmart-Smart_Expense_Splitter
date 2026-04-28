@@ -56,7 +56,7 @@ smart-expense-splitter/
 | Database | Supabase (PostgreSQL) |
 | Real-time | Supabase Realtime via WebSockets |
 | AI | Groq API — LLaMA 3.3 70B |
-| Deployment | Netlify |
+| Deployment | Vercel |
 
 ### Database Tables
 | Table | Purpose |
@@ -105,10 +105,10 @@ const CONFIG = {
 ### 5. Run locally
 Just open `index.html` in your browser — no build step, no server needed.
 
-### 6. Deploy to Netlify
+### 6. Deploy to Vercel
 1. Push the repo to GitHub (make sure it's public)
-2. Go to [netlify.com](https://netlify.com) → **Add new site** → **Import from Git**
-3. Select your repo, leave all build settings blank
+2. Go to [vercel.com](https://vercel.com) → **Add New Project** → Import from Git
+3. Select your repo, set Framework Preset to **Other**, leave build settings blank
 4. Click **Deploy** — live in ~30 seconds
 
 ---
