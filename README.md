@@ -143,7 +143,6 @@ Supabase Realtime subscribes to Postgres changes on all 5 tables, filtered by `g
 <img width="2879" height="1567" alt="image" src="https://github.com/user-attachments/assets/7c6d7692-e7c7-4c45-8c22-89d078640595" />
 <img width="2879" height="1566" alt="image" src="https://github.com/user-attachments/assets/07d353cf-09c7-4c3a-8372-6f63eb9e3e6d" />
 <img width="2879" height="1570" alt="image" src="https://github.com/user-attachments/assets/18eac81b-c32b-4e74-89f5-ab6cf8e1bc25" />
-<img width="2879" height="1570" alt="image" src="https://github.com/user-attachments/assets/54ec468e-4b53-4fe5-99b3-904c9ee3ba6f" />
 <img width="2879" height="1571" alt="image" src="https://github.com/user-attachments/assets/0914aedf-fdfd-4207-b811-dea824409067" />
 
 
