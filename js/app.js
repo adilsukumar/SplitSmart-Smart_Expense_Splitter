@@ -127,7 +127,7 @@ function renderAll() {
   renderExpenses();
   renderBalances();
   renderSettlements();
-  renderInsightCharts();
+  renderCharts();
   $("groupMeta").textContent = `${members.length} members · ${expenses.length} expenses`;
 }
 
@@ -283,7 +283,21 @@ function getBalances() {
   return bal;
 }
 
-function getDebts(bal) {
+function renderBalances() {
+  const bal = getBalances();
+  if (!members.length) { $("balList").innerHTML = empty("⚖️", "Add members first"); $("debtList").innerHTML = ""; return; }
+
+  $("balList").innerHTML = members.map(m => {
+    const b = bal[m.id] || 0;
+    const cls = b > 0.01 ? "pos" : b < -0.01 ? "neg" : "zero";
+    const label = b > 0.01 ? "gets back" : b < -0.01 ? "owes" : "settled up";
+    return `<div class="bal-item">
+      <div class="chip" style="display:inline-flex"><div class="av">${m.name[0].toUpperCase()}</div>${m.name}</div>
+      <span><span class="${cls}">₹${Math.abs(b).toFixed(2)}</span> <span class="dim">${label}</span></span>
+    </div>`;
+  }).join("");
+
+  // simplify debts — greedy algorithm
   const creditors = [], debtors = [];
   Object.entries(bal).forEach(([id, b]) => {
     if (b > 0.01) creditors.push({ id, amount: b });
@@ -299,24 +313,7 @@ function getDebts(bal) {
     if (debtors[i].amount < 0.01) i++;
     if (creditors[j].amount < 0.01) j++;
   }
-  return debts;
-}
 
-function renderBalances() {
-  const bal = getBalances();
-  if (!members.length) { $("balList").innerHTML = empty("⚖️", "Add members first"); $("debtList").innerHTML = ""; return; }
-
-  $("balList").innerHTML = members.map(m => {
-    const b = bal[m.id] || 0;
-    const cls = b > 0.01 ? "pos" : b < -0.01 ? "neg" : "zero";
-    const label = b > 0.01 ? "gets back" : b < -0.01 ? "owes" : "settled up";
-    return `<div class="bal-item">
-      <div class="chip" style="display:inline-flex"><div class="av">${m.name[0].toUpperCase()}</div>${m.name}</div>
-      <span><span class="${cls}">₹${Math.abs(b).toFixed(2)}</span> <span class="dim">${label}</span></span>
-    </div>`;
-  }).join("");
-
-  const debts = getDebts(bal);
   $("debtList").innerHTML = debts.length
     ? debts.map(d => {
         const from = members.find(m => m.id === d.from)?.name || "?";
@@ -358,28 +355,20 @@ function renderSettlements() {
   }).join("");
 }
 
-// ---- INSIGHTS CHARTS ----
-
-function renderInsightCharts() {
+function renderCharts() {
   if (!expenses.length) {
     $("catBreakdown").innerHTML = empty("📊", "No data yet");
     $("topSpenders").innerHTML = empty("🏆", "No data yet");
     return;
   }
-
   const cats = {};
   expenses.forEach(e => cats[e.category] = (cats[e.category] || 0) + parseFloat(e.amount));
   const total = Object.values(cats).reduce((a, b) => a + b, 0);
   $("catBreakdown").innerHTML = Object.entries(cats).sort((a,b) => b[1]-a[1]).map(([cat, amt]) => {
     const pct = ((amt / total) * 100).toFixed(1);
-    return `<div class="bar-item">
-      <div class="bar-label"><span>${catEmoji(cat)} ${cat}</span><span>₹${amt.toFixed(2)} (${pct}%)</span></div>
-      <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
-    </div>`;
+    return `<div class="bar-item"><div class="bar-label"><span>${catEmoji(cat)} ${cat}</span><span>₹${amt.toFixed(2)} (${pct}%)</span></div><div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div></div>`;
   }).join("");
-
   const spent = {};
-  members.forEach(m => spent[m.id] = 0);
   expenses.forEach(e => spent[e.paid_by] = (spent[e.paid_by] || 0) + parseFloat(e.amount));
   $("topSpenders").innerHTML = members
     .map(m => ({ name: m.name, amt: spent[m.id] || 0 }))
@@ -388,8 +377,6 @@ function renderInsightCharts() {
     .join("");
 }
 
-// ---- AI INSIGHTS ----
-
 $("insightsBtn").addEventListener("click", async () => {
   if (!expenses.length) return toast("Add expenses first", "error");
   $("insightsBtn").disabled = true;
@@ -397,8 +384,6 @@ $("insightsBtn").addEventListener("click", async () => {
   $("insightsOut").className = "insight-box";
   $("insightsOut").textContent = "Analyzing spending patterns...";
 
-  const bal = getBalances();
-  const debts = getDebts(bal);
   const cats = {};
   expenses.forEach(e => cats[e.category] = (cats[e.category] || 0) + parseFloat(e.amount));
   const total = expenses.reduce((s, e) => s + parseFloat(e.amount), 0).toFixed(2);
@@ -411,7 +396,7 @@ $("insightsBtn").addEventListener("click", async () => {
         model: CONFIG.GROQ_MODEL,
         messages: [
           { role: "system", content: "You are a friendly expense analyst. Be concise and use emojis." },
-          { role: "user", content: `Give 4-5 short insights about this group's spending. Under 180 words.\n\nTotal: ₹${total}\nMembers: ${members.map(m=>m.name).join(", ")}\nCategories: ${JSON.stringify(cats)}\nDebts: ${JSON.stringify(debts.map(d => ({ from: members.find(m=>m.id===d.from)?.name, to: members.find(m=>m.id===d.to)?.name, amount: d.amount.toFixed(2) })))}` }
+          { role: "user", content: `Give 4-5 short insights about this group's spending. Under 180 words.\n\nTotal: ₹${total}\nMembers: ${members.map(m=>m.name).join(", ")}\nCategories: ${JSON.stringify(cats)}` }
         ],
         max_tokens: 350,
         temperature: 0.7
